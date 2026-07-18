@@ -1,0 +1,58 @@
+import { LogOut, Settings } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import type { DashboardUser } from '@/types/dashboard';
+
+interface UserMenuProps {
+  user: DashboardUser;
+}
+
+export function UserMenu({ user }: UserMenuProps) {
+  const initials = user.name
+    .split(' ')
+    .map((part) => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className="rounded-full outline-none ring-offset-background transition focus-visible:ring-2 focus-visible:ring-ring"
+          aria-label="Open user menu"
+        >
+          <Avatar className="size-8 border border-border">
+            <AvatarImage src={user.avatarUrl} alt={user.username} />
+            <AvatarFallback>{initials}</AvatarFallback>
+          </Avatar>
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuLabel className="font-normal">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-sm font-medium text-foreground">{user.name}</span>
+            <span className="font-mono text-xs text-muted-foreground">@{user.username}</span>
+          </div>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem>
+          <Settings className="size-4" />
+          Settings
+        </DropdownMenuItem>
+        <DropdownMenuItem className="text-destructive focus:text-destructive">
+          <LogOut className="size-4" />
+          Sign out
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
