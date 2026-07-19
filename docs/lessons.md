@@ -13,9 +13,9 @@
 - **Fix:** Add `frontend/vercel.json` that `cd ..` then install/build workspaces. Root `vercel.json` uses `npm run vercel-build`. Document both Root Directory options.
 - **Prevention:** Monorepo Vite apps on Vercel must install from the repo that contains `"workspaces"`, not from a nested package alone.
 
-## 2026-07-19 — Repo picker: only selected public repos for analysis
+## 2026-07-19 — Mongo `Invalid scheme` with Atlas URI present in .env
 
-- **Symptoms:** After GitHub login, every repo (including private) was available for Analysis.
-- **Root cause:** OAuth used `repo` scope and `/api/repos` returned the full GitHub list with no per-user selection.
-- **Fix:** OAuth scope → `public_repo`. User stores `selectedRepos` in Mongo. Picker at `/repos/select` lists public repos only; switcher/analysis/chat/guardian require a connected public repo.
-- **Prevention:** Never treat OAuth “all accessible repos” as product access; always gate on an explicit connected set + public-only filter.
+- **Symptoms:** `MongoDB unavailable` with `Invalid scheme, expected connection string to start with "mongodb://" or "mongodb+srv://"`.
+- **Root cause:** `MONGODB_URI=` left empty and the Atlas URL placed on the next line. dotenv treats that as empty string; `??` fallback does not apply to `""`.
+- **Fix:** Put the full URI on one line: `MONGODB_URI=mongodb+srv://...`. Treat blank `MONGODB_URI` as unset in `connectMongo`.
+- **Prevention:** Never split env values across lines; empty string ≠ missing.

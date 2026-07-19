@@ -13,7 +13,19 @@ export function isMongoConnected(): boolean {
  * with an in-memory knowledge fallback when Mongo isn't running.
  */
 export async function connectMongo(): Promise<void> {
-  const uri = env.MONGODB_URI ?? 'mongodb://localhost:27017/devguardian';
+  const configured = env.MONGODB_URI?.trim();
+  const uri =
+    configured && configured.length > 0
+      ? configured
+      : 'mongodb://localhost:27017/devguardian';
+
+  if (!uri.startsWith('mongodb://') && !uri.startsWith('mongodb+srv://')) {
+    connected = false;
+    logger.warn('MongoDB unavailable — knowledge falls back to in-memory store', {
+      error: 'MONGODB_URI must start with mongodb:// or mongodb+srv:// (check .env is one line)',
+    });
+    return;
+  }
 
   try {
     mongoose.set('strictQuery', true);
