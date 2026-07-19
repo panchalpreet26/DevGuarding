@@ -5,3 +5,10 @@
 - **Fix:** Move `typescript` + required `@types/*` into `dependencies` (backend + shared). Build with `npm install --include=dev`. Exclude `src/**/*.check.ts` from `backend/tsconfig.json`. Set `"types": ["node"]`.
 - **Prevention:** Any platform that installs with production NODE_ENV must either include compile-time types in `dependencies` or force `--include=dev` for the build step.
 - **Sources:** Render Node build behavior; TypeScript TS2591 docs.
+
+## 2026-07-19 — Vercel: `No workspaces found: --workspace=shared`
+
+- **Symptoms:** Vercel build fails after `npm install` with npm error that workspace `shared` does not exist.
+- **Root cause:** Project Root Directory was `frontend/`, so install ran outside the monorepo workspace root.
+- **Fix:** Add `frontend/vercel.json` that `cd ..` then install/build workspaces. Root `vercel.json` uses `npm run vercel-build`. Document both Root Directory options.
+- **Prevention:** Monorepo Vite apps on Vercel must install from the repo that contains `"workspaces"`, not from a nested package alone.

@@ -84,7 +84,9 @@ GitHub OAuth Apps allow **one** callback URL. For production:
 ## 4. Deploy frontend on Vercel
 
 1. [vercel.com/new](https://vercel.com/new) → import this GitHub repo.
-2. Vercel should detect `vercel.json` at the repo root.
+2. **Important — Root Directory:** leave **empty** (repo root), **or** set to `frontend`.
+   - Empty root → uses root `vercel.json`
+   - `frontend` → uses `frontend/vercel.json` (installs from monorepo root via `cd ..`)
 3. **Environment Variables** (Production):
 
 | Name | Value |
