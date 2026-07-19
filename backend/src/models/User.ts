@@ -12,6 +12,7 @@ const userSchema = new Schema(
     email: { type: String, default: null },
     avatarUrl: { type: String, required: true },
     accessTokenEnc: { type: String, required: true },
+    selectedRepos: { type: [String], default: [] },
   },
   {
     timestamps: true,

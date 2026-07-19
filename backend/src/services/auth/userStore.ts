@@ -19,6 +19,7 @@ function toPublic(user: StoredUser): User {
     email: user.email,
     avatarUrl: user.avatarUrl,
     createdAt: user.createdAt,
+    selectedRepos: user.selectedRepos ?? [],
   };
 }
 
@@ -32,6 +33,7 @@ function fromDoc(doc: UserDocument): StoredUser {
     avatarUrl: doc.avatarUrl,
     accessTokenEnc: doc.accessTokenEnc,
     createdAt: doc.createdAt.toISOString(),
+    selectedRepos: doc.selectedRepos ?? [],
   };
 }
 
@@ -88,6 +90,7 @@ export async function upsertGithubUser(input: {
     avatarUrl: input.avatarUrl,
     accessTokenEnc,
     createdAt: now,
+    selectedRepos: [],
   };
   memory.set(id, created);
   byGithubId.set(input.githubId, id);
@@ -100,6 +103,31 @@ export async function findUserById(id: string): Promise<StoredUser | null> {
     return doc ? fromDoc(doc) : null;
   }
   return memory.get(id) ?? null;
+}
+
+export async function setSelectedRepos(
+  userId: string,
+  fullNames: string[],
+): Promise<User> {
+  const normalized = [
+    ...new Set(fullNames.map((n) => n.trim()).filter(Boolean)),
+  ];
+
+  if (isMongoConnected()) {
+    const doc = await UserModel.findByIdAndUpdate(
+      userId,
+      { selectedRepos: normalized },
+      { new: true },
+    ).exec();
+    if (!doc) throw new Error('User not found');
+    return toPublic(fromDoc(doc));
+  }
+
+  const prev = memory.get(userId);
+  if (!prev) throw new Error('User not found');
+  const updated: StoredUser = { ...prev, selectedRepos: normalized };
+  memory.set(userId, updated);
+  return toPublic(updated);
 }
 
 export function getAccessToken(user: StoredUser): string {

@@ -37,9 +37,7 @@ type GitHubContentFile = {
 };
 
 function resolveToken(explicit?: string): string | undefined {
-  // Prefer server GITHUB_TOKEN (fine-grained PAT with selected repos) over OAuth session.
-  if (env.GITHUB_TOKEN) return env.GITHUB_TOKEN;
-  return explicit ?? githubTokenStore.getStore()?.token;
+  return explicit ?? githubTokenStore.getStore()?.token ?? env.GITHUB_TOKEN;
 }
 
 async function githubFetch<T>(
@@ -109,28 +107,66 @@ export function mapRepo(raw: GitHubRepoJson) {
 }
 
 export async function getRepo(owner: string, repo: string, accessToken?: string) {
-  return mapRepo(
+  const meta = mapRepo(
     await githubFetch<GitHubRepoJson>(`/repos/${owner}/${repo}`, {}, accessToken),
   );
+  if (meta.private) {
+    throw new HttpError(
+      403,
+      'private_repo_blocked',
+      'Private repositories are not allowed. Connect a public repository only.',
+    );
+  }
+  return meta;
 }
 
-/** List repos for the configured GitHub token (fine-grained or OAuth). */
-export async function listUserRepos(accessToken?: string, perPage = 100) {
+/**
+ * List the signed-in user's public repositories (for the connect/picker UI).
+ * Private repos are never returned.
+ */
+export async function listPublicUserRepos(accessToken?: string, perPage = 100) {
   const token = resolveToken(accessToken);
   if (!token) {
     throw new HttpError(
       401,
       'github_token_required',
-      'Sign in with GitHub or set GITHUB_TOKEN to list repositories.',
+      'Sign in with GitHub to list your repositories.',
     );
   }
 
   const raw = await githubFetch<GitHubRepoJson[]>(
-    `/user/repos?per_page=${perPage}&sort=updated&affiliation=owner,collaborator,organization_member`,
+    `/user/repos?per_page=${perPage}&sort=updated&visibility=public&affiliation=owner,collaborator,organization_member`,
     {},
     token,
   );
-  return raw.map(mapRepo);
+  return raw.map(mapRepo).filter((repo) => !repo.private);
+}
+
+/** List repos the user has connected for DevGuardian (subset of public repos). */
+export async function listUserRepos(
+  accessToken: string | undefined,
+  selectedFullNames: string[],
+  perPage = 100,
+) {
+  if (!selectedFullNames.length) return [];
+
+  const allowed = new Set(selectedFullNames.map((n) => n.toLowerCase()));
+  const publicRepos = await listPublicUserRepos(accessToken, perPage);
+  return publicRepos.filter((repo) => allowed.has(repo.fullName.toLowerCase()));
+}
+
+/** Ensure fullName is in the user's connected public set. */
+export function assertRepoConnected(fullName: string, selectedFullNames: string[]): void {
+  const ok = selectedFullNames.some(
+    (name) => name.toLowerCase() === fullName.trim().toLowerCase(),
+  );
+  if (!ok) {
+    throw new HttpError(
+      403,
+      'repo_not_connected',
+      'This repository is not connected. Open Select repositories and add it first.',
+    );
+  }
 }
 
 /** Recursive file tree for the default (or given) branch. */

@@ -12,3 +12,10 @@
 - **Root cause:** Project Root Directory was `frontend/`, so install ran outside the monorepo workspace root.
 - **Fix:** Add `frontend/vercel.json` that `cd ..` then install/build workspaces. Root `vercel.json` uses `npm run vercel-build`. Document both Root Directory options.
 - **Prevention:** Monorepo Vite apps on Vercel must install from the repo that contains `"workspaces"`, not from a nested package alone.
+
+## 2026-07-19 — Repo picker: only selected public repos for analysis
+
+- **Symptoms:** After GitHub login, every repo (including private) was available for Analysis.
+- **Root cause:** OAuth used `repo` scope and `/api/repos` returned the full GitHub list with no per-user selection.
+- **Fix:** OAuth scope → `public_repo`. User stores `selectedRepos` in Mongo. Picker at `/repos/select` lists public repos only; switcher/analysis/chat/guardian require a connected public repo.
+- **Prevention:** Never treat OAuth “all accessible repos” as product access; always gate on an explicit connected set + public-only filter.

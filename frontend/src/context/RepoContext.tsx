@@ -71,7 +71,7 @@ export function RepoProvider({ children }: { children: ReactNode }) {
       const list = await fetchRepos();
       setRepos(list);
       if (!list.length) {
-        setReposError('No repositories found for this GitHub account.');
+        setReposError('No repositories connected yet. Choose public repos to continue.');
       }
     } catch (err) {
       const message =

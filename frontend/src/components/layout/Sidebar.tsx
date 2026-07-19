@@ -20,7 +20,7 @@ const navItems = [
   { to: '/chat', label: 'AI Chat', icon: MessageSquare },
   { to: '/guardian', label: 'API Guardian', icon: Shield },
   { to: '/knowledge', label: 'Knowledge Base', icon: BookOpen },
-  { to: '/settings', label: 'Settings', icon: Settings },
+  { to: '/settings', label: 'Repos', icon: Settings },
 ] as const;
 
 interface SidebarProps {

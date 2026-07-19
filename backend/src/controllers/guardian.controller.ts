@@ -1,14 +1,15 @@
-import type { Request, Response, NextFunction } from 'express';
+import type { Response, NextFunction } from 'express';
 import {
   getCachedGuardianReport,
   runGuardianCompare,
 } from '../services/guardian/runGuardian.js';
-import { parseFullName } from '../services/github/client.js';
+import { assertRepoConnected, parseFullName } from '../services/github/client.js';
 import { HttpError, sendOk } from '../utils/http.js';
+import type { AuthedRequest } from '../middleware/auth.js';
 
 /** POST /api/guardian/compare — body: { repoFullName, swagger } */
 export async function compareGuardian(
-  req: Request,
+  req: AuthedRequest,
   res: Response,
   next: NextFunction,
 ): Promise<void> {
@@ -23,6 +24,7 @@ export async function compareGuardian(
       throw new HttpError(400, 'missing_swagger', 'Body must include swagger JSON.');
     }
     parseFullName(repoFullName);
+    assertRepoConnected(repoFullName, req.user?.selectedRepos ?? []);
 
     const report = await runGuardianCompare({ repoFullName, swagger });
     sendOk(res, { report });
@@ -33,7 +35,7 @@ export async function compareGuardian(
 
 /** GET /api/guardian/:owner/:repo — last cached report */
 export async function getGuardianReport(
-  req: Request,
+  req: AuthedRequest,
   res: Response,
   next: NextFunction,
 ): Promise<void> {
@@ -42,6 +44,7 @@ export async function getGuardianReport(
     const repo = String(req.params.repo ?? '');
     const fullName = `${owner}/${repo}`;
     parseFullName(fullName);
+    assertRepoConnected(fullName, req.user?.selectedRepos ?? []);
 
     const report = getCachedGuardianReport(fullName);
     if (!report) {

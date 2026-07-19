@@ -5,7 +5,7 @@ const GITHUB_AUTHORIZE = 'https://github.com/login/oauth/authorize';
 const GITHUB_TOKEN = 'https://github.com/login/oauth/access_token';
 const GITHUB_API = 'https://api.github.com';
 
-const SCOPES = ['read:user', 'user:email', 'repo'].join(' ');
+const SCOPES = ['read:user', 'user:email', 'public_repo'].join(' ');
 
 function requireOAuthConfig(): { clientId: string; clientSecret: string; callbackUrl: string } {
   const clientId = env.GITHUB_CLIENT_ID;

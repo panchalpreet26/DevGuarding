@@ -1,9 +1,10 @@
 import type { Request, Response, NextFunction } from 'express';
 import type { ChatHistoryTurn, ChatStreamEvent } from '@devguardian/shared';
 import { streamRepoChat } from '../services/ai/chatService.js';
-import { parseFullName } from '../services/github/client.js';
+import { assertRepoConnected, parseFullName } from '../services/github/client.js';
 import { HttpError, sendOk } from '../utils/http.js';
 import { logger } from '../utils/logger.js';
+import type { AuthedRequest } from '../middleware/auth.js';
 
 function parseHistory(raw: unknown): ChatHistoryTurn[] {
   if (!Array.isArray(raw)) return [];
@@ -25,7 +26,7 @@ function writeSse(res: Response, event: ChatStreamEvent): void {
 
 /** POST /api/chat/stream — SSE grounded chat. */
 export async function streamChat(
-  req: Request,
+  req: AuthedRequest,
   res: Response,
   next: NextFunction,
 ): Promise<void> {
@@ -42,6 +43,7 @@ export async function streamChat(
       );
     }
     parseFullName(fullName);
+    assertRepoConnected(fullName, req.user?.selectedRepos ?? []);
 
     const history = parseHistory(req.body?.history);
 
@@ -74,7 +76,7 @@ export async function streamChat(
 
 /** POST /api/chat — non-streaming convenience (collects the stream). */
 export async function chatOnce(
-  req: Request,
+  req: AuthedRequest,
   res: Response,
   next: NextFunction,
 ): Promise<void> {
@@ -90,6 +92,7 @@ export async function chatOnce(
       );
     }
     parseFullName(fullName);
+    assertRepoConnected(fullName, req.user?.selectedRepos ?? []);
 
     let citations: string[] = [];
     let answer = '';

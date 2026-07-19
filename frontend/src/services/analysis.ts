@@ -6,6 +6,19 @@ export async function fetchRepos(): Promise<Repository[]> {
   return data.repos;
 }
 
+export async function fetchAvailableRepos(): Promise<{
+  repos: Repository[];
+  selectedRepos: string[];
+}> {
+  return api.get<{ repos: Repository[]; selectedRepos: string[] }>('/repos/available');
+}
+
+export async function saveRepoSelection(fullNames: string[]): Promise<{
+  repos: Repository[];
+}> {
+  return api.put<{ repos: Repository[] }>('/repos/selection', { fullNames });
+}
+
 export async function analyzeRepo(
   fullName: string,
   force = false,

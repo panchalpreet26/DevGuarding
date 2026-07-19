@@ -1,14 +1,15 @@
-import type { Request, Response, NextFunction } from 'express';
+import type { Response, NextFunction } from 'express';
 import {
   analyzeRepository,
   getCachedAnalysis,
 } from '../services/analysis/index.js';
-import { parseFullName } from '../services/github/client.js';
+import { assertRepoConnected, parseFullName } from '../services/github/client.js';
 import { HttpError, sendOk } from '../utils/http.js';
+import type { AuthedRequest } from '../middleware/auth.js';
 
 /** POST /api/analysis — body: { fullName: "owner/repo" } */
 export async function runAnalysis(
-  req: Request,
+  req: AuthedRequest,
   res: Response,
   next: NextFunction,
 ): Promise<void> {
@@ -19,6 +20,7 @@ export async function runAnalysis(
       throw new HttpError(400, 'missing_full_name', 'Body must include fullName: "owner/repo".');
     }
     parseFullName(fullName);
+    assertRepoConnected(fullName, req.user?.selectedRepos ?? []);
 
     const force = Boolean(req.body?.force);
     if (!force) {
@@ -38,7 +40,7 @@ export async function runAnalysis(
 
 /** GET /api/analysis/:owner/:repo — cached analysis only (404 if never analyzed). */
 export async function getAnalysis(
-  req: Request,
+  req: AuthedRequest,
   res: Response,
   next: NextFunction,
 ): Promise<void> {
@@ -47,6 +49,7 @@ export async function getAnalysis(
     const repo = String(req.params.repo ?? '');
     const fullName = `${owner}/${repo}`;
     parseFullName(fullName);
+    assertRepoConnected(fullName, (req as AuthedRequest).user?.selectedRepos ?? []);
 
     const cached = getCachedAnalysis(fullName);
     if (!cached) {
