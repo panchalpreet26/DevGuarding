@@ -61,7 +61,7 @@ Railway can replace Render if you prefer; same env vars apply.
 
 - **Root Directory:** repo root (leave empty)
 - **Runtime:** Node
-- **Build:** `npm install && npm run build -w shared && npm run build -w backend`
+- **Build:** `npm install --include=dev && npm run build -w shared && npm run build -w backend`
 - **Start:** `npm run start -w backend`
 - Same env vars as above.
 

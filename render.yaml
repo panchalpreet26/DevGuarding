@@ -9,7 +9,9 @@ services:
     plan: free
     region: oregon
     rootDir: .
-    buildCommand: npm install && npm run build -w shared && npm run build -w backend
+    # NODE_ENV=production would skip devDeps; types/tsc live in dependencies,
+    # and --include=dev covers shared/workspace tooling on free builds.
+    buildCommand: npm install --include=dev && npm run build -w shared && npm run build -w backend
     startCommand: npm run start -w backend
     healthCheckPath: /api/health
     envVars:
