@@ -11,6 +11,9 @@ import { env } from './config/env.js';
 export function createApp(): Express {
   const app = express();
 
+  // Needed behind Render / Railway / Vercel proxies for correct HTTPS cookie handling.
+  app.set('trust proxy', 1);
+
   app.use(
     cors({
       origin: env.CLIENT_ORIGIN,

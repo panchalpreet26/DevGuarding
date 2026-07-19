@@ -8,7 +8,7 @@ Codebase structure (npm workspaces monorepo):
 - `shared/` — TypeScript types/DTOs imported by both frontend and backend (single source of truth).
 - `docs/` — specs, architecture notes, and `lessons.md` (debugging memory).
 
-Data: MongoDB. Auth: GitHub OAuth. AI: OpenAI Responses API. Repo data: GitHub REST API. Deploy: Docker, Vercel (frontend), Railway (backend).
+Data: MongoDB. Auth: GitHub OAuth. AI: OpenAI Responses API. Repo data: GitHub REST API. Deploy: Vercel (frontend), Render (backend), MongoDB Atlas. Guide: `docs/DEPLOY.md`. Production cookies use `SameSite=None; Secure` for cross-origin FE↔BE.
 
 # Skills available for use
 

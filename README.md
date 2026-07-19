@@ -23,7 +23,7 @@ Not a ChatGPT wrapper — it grounds every answer in your actual repository.
 | Auth      | GitHub OAuth                                                 |
 | AI        | OpenAI Responses API                                        |
 | Repo data | GitHub REST API                                             |
-| Deploy    | Docker · Vercel (FE) · Railway (BE)                         |
+| Deploy    | Vercel (FE) · Render (BE) · MongoDB Atlas (free)            |
 
 ## Monorepo Layout
 
@@ -135,14 +135,26 @@ API:
 | `npm run lint`         | ESLint across the repo             |
 | `npm run format`       | Prettier write                     |
 
+## Free production deploy
+
+Full guide: **[docs/DEPLOY.md](docs/DEPLOY.md)**
+
+| Piece | Free host |
+| ----- | --------- |
+| Frontend | Vercel (`vercel.json` at repo root) |
+| Backend | Render (`render.yaml` Blueprint) |
+| DB | MongoDB Atlas M0 |
+
+After deploy, set Vercel `VITE_API_BASE_URL` to `https://<render-service>.onrender.com/api`, and set Render `CLIENT_ORIGIN` / `CLIENT_URL` to your Vercel URL. Update the GitHub OAuth callback to the Render URL.
+
 ## Build Milestones
 
-1. ✅ **Project Setup** ← current
-2. Authentication (GitHub OAuth)
-3. Dashboard
-4. GitHub Repository Integration
-5. Repository Analysis
-6. AI Chat
-7. Engineering Memory
-8. API Guardian
-9. Deployment
+1. ✅ Project Setup
+2. ✅ Authentication (GitHub OAuth)
+3. ✅ Dashboard
+4. ✅ GitHub Repository Integration
+5. ✅ Repository Analysis
+6. ✅ AI Chat
+7. ✅ Engineering Memory
+8. ✅ API Guardian
+9. ✅ Deployment configs (Vercel + Render)

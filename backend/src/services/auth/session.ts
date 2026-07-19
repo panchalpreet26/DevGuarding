@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken';
-import { env } from '../../config/env.js';
+import { env, isProd } from '../../config/env.js';
 import { HttpError } from '../../utils/http.js';
 
 const COOKIE_NAME = 'dg_session';
@@ -31,12 +31,25 @@ export function verifySession(token: string): string {
   }
 }
 
-export function sessionCookieOptions() {
+/**
+ * Cookie options for session + OAuth state.
+ * Production uses SameSite=None; Secure so Vercel (FE) can talk to Render (BE) with credentials.
+ */
+export function sessionCookieOptions(maxAgeMs = SESSION_DAYS * 24 * 60 * 60 * 1000) {
   return {
     httpOnly: true as const,
-    secure: env.NODE_ENV === 'production',
-    sameSite: 'lax' as const,
-    maxAge: SESSION_DAYS * 24 * 60 * 60 * 1000,
+    secure: isProd,
+    sameSite: (isProd ? 'none' : 'lax') as 'none' | 'lax',
+    maxAge: maxAgeMs,
+    path: '/',
+  };
+}
+
+export function clearCookieOptions() {
+  return {
+    httpOnly: true as const,
+    secure: isProd,
+    sameSite: (isProd ? 'none' : 'lax') as 'none' | 'lax',
     path: '/',
   };
 }

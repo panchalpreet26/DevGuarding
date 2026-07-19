@@ -6,6 +6,7 @@ import {
   fetchGithubProfile,
 } from '../services/auth/githubOAuth.js';
 import {
+  clearCookieOptions,
   COOKIE_NAME,
   sessionCookieOptions,
   signSession,
@@ -26,13 +27,7 @@ function clientUrl(): string {
 export function startGithubOAuth(_req: Request, res: Response, next: NextFunction): void {
   try {
     const state = randomBytes(16).toString('hex');
-    res.cookie(OAUTH_STATE_COOKIE, state, {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: env.NODE_ENV === 'production',
-      maxAge: 10 * 60 * 1000,
-      path: '/',
-    });
+    res.cookie(OAUTH_STATE_COOKIE, state, sessionCookieOptions(10 * 60 * 1000));
     res.redirect(buildGithubAuthorizeUrl(state));
   } catch (err) {
     next(err);
@@ -57,7 +52,7 @@ export async function githubOAuthCallback(
       throw new HttpError(400, 'invalid_state', 'OAuth state mismatch. Try signing in again.');
     }
 
-    res.clearCookie(OAUTH_STATE_COOKIE, { path: '/' });
+    res.clearCookie(OAUTH_STATE_COOKIE, clearCookieOptions());
 
     const accessToken = await exchangeCodeForToken(code);
     const profile = await fetchGithubProfile(accessToken);
@@ -89,7 +84,7 @@ export function getMe(req: AuthedRequest, res: Response): void {
 
 /** POST /api/auth/logout */
 export function logout(_req: Request, res: Response): void {
-  res.clearCookie(COOKIE_NAME, { path: '/' });
+  res.clearCookie(COOKIE_NAME, clearCookieOptions());
   sendOk(res, { ok: true });
 }
 
