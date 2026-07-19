@@ -37,7 +37,9 @@ type GitHubContentFile = {
 };
 
 function resolveToken(explicit?: string): string | undefined {
-  return explicit ?? githubTokenStore.getStore()?.token ?? env.GITHUB_TOKEN;
+  // Prefer server GITHUB_TOKEN (fine-grained PAT with selected repos) over OAuth session.
+  if (env.GITHUB_TOKEN) return env.GITHUB_TOKEN;
+  return explicit ?? githubTokenStore.getStore()?.token;
 }
 
 async function githubFetch<T>(
@@ -112,20 +114,21 @@ export async function getRepo(owner: string, repo: string, accessToken?: string)
   );
 }
 
-/** List repos for the authenticated GitHub user (OAuth token required). */
-export async function listUserRepos(accessToken: string, perPage = 100) {
-  if (!accessToken) {
+/** List repos for the configured GitHub token (fine-grained or OAuth). */
+export async function listUserRepos(accessToken?: string, perPage = 100) {
+  const token = resolveToken(accessToken);
+  if (!token) {
     throw new HttpError(
       401,
       'github_token_required',
-      'Sign in with GitHub to list your repositories.',
+      'Sign in with GitHub or set GITHUB_TOKEN to list repositories.',
     );
   }
 
   const raw = await githubFetch<GitHubRepoJson[]>(
     `/user/repos?per_page=${perPage}&sort=updated&affiliation=owner,collaborator,organization_member`,
     {},
-    accessToken,
+    token,
   );
   return raw.map(mapRepo);
 }

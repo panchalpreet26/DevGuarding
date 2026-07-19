@@ -10,7 +10,7 @@ export async function listRepos(
   next: NextFunction,
 ): Promise<void> {
   try {
-    const repos = await listUserRepos(req.githubAccessToken!);
+    const repos = await listUserRepos(req.githubAccessToken);
     sendOk(res, { repos });
   } catch (err) {
     next(err);
