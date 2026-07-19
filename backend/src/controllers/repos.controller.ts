@@ -1,15 +1,16 @@
 import type { Request, Response, NextFunction } from 'express';
 import { listUserRepos, getRepo, parseFullName } from '../services/github/client.js';
 import { sendOk } from '../utils/http.js';
+import type { AuthedRequest } from '../middleware/auth.js';
 
-/** GET /api/repos — list repositories for the configured GITHUB_TOKEN user. */
+/** GET /api/repos — list repositories for the signed-in GitHub user. */
 export async function listRepos(
-  _req: Request,
+  req: AuthedRequest,
   res: Response,
   next: NextFunction,
 ): Promise<void> {
   try {
-    const repos = await listUserRepos();
+    const repos = await listUserRepos(req.githubAccessToken!);
     sendOk(res, { repos });
   } catch (err) {
     next(err);
@@ -18,14 +19,14 @@ export async function listRepos(
 
 /** GET /api/repos/:owner/:repo — metadata for one repository. */
 export async function getRepository(
-  req: Request,
+  req: AuthedRequest,
   res: Response,
   next: NextFunction,
 ): Promise<void> {
   try {
     const owner = String(req.params.owner ?? '');
     const repo = String(req.params.repo ?? '');
-    const meta = await getRepo(owner, repo);
+    const meta = await getRepo(owner, repo, req.githubAccessToken);
     sendOk(res, { repo: meta });
   } catch (err) {
     next(err);
@@ -41,3 +42,6 @@ export function resolveFullName(body: unknown): string {
   parseFullName(fullName);
   return fullName.trim();
 }
+
+// silence unused Request import warning if any tooling complains
+export type { Request };

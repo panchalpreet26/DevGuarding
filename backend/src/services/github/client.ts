@@ -1,7 +1,11 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { env } from '../../config/env.js';
 import { HttpError } from '../../utils/http.js';
 
 const GITHUB_API = 'https://api.github.com';
+
+/** Per-request GitHub token (from OAuth session). Falls back to env.GITHUB_TOKEN. */
+export const githubTokenStore = new AsyncLocalStorage<{ token?: string }>();
 
 export type GitHubTreeItem = {
   path: string;
@@ -32,7 +36,15 @@ type GitHubContentFile = {
   size: number;
 };
 
-async function githubFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+function resolveToken(explicit?: string): string | undefined {
+  return explicit ?? githubTokenStore.getStore()?.token ?? env.GITHUB_TOKEN;
+}
+
+async function githubFetch<T>(
+  path: string,
+  init: RequestInit = {},
+  accessToken?: string,
+): Promise<T> {
   const headers: Record<string, string> = {
     Accept: 'application/vnd.github+json',
     'X-GitHub-Api-Version': '2022-11-28',
@@ -40,11 +52,22 @@ async function githubFetch<T>(path: string, init: RequestInit = {}): Promise<T> 
     ...(init.headers as Record<string, string> | undefined),
   };
 
-  if (env.GITHUB_TOKEN) {
-    headers.Authorization = `Bearer ${env.GITHUB_TOKEN}`;
+  const token = resolveToken(accessToken);
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
   }
 
-  const res = await fetch(`${GITHUB_API}${path}`, { ...init, headers });
+  let res: Response;
+  try {
+    res = await fetch(`${GITHUB_API}${path}`, { ...init, headers });
+  } catch (err) {
+    throw new HttpError(
+      502,
+      'github_network_error',
+      'Could not reach GitHub API. Check your network connection.',
+      { error: err instanceof Error ? err.message : String(err) },
+    );
+  }
 
   if (res.status === 404) {
     throw new HttpError(404, 'github_not_found', `GitHub resource not found: ${path}`);
@@ -54,7 +77,7 @@ async function githubFetch<T>(path: string, init: RequestInit = {}): Promise<T> 
     throw new HttpError(
       401,
       'github_auth_failed',
-      'GitHub API rejected the request. Set a valid GITHUB_TOKEN in .env.',
+      'GitHub rejected the request. Sign in with GitHub again or check OAuth scopes (repo).',
       { status: res.status, body: body.slice(0, 200) },
     );
   }
@@ -83,21 +106,26 @@ export function mapRepo(raw: GitHubRepoJson) {
   };
 }
 
-export async function getRepo(owner: string, repo: string) {
-  return mapRepo(await githubFetch<GitHubRepoJson>(`/repos/${owner}/${repo}`));
+export async function getRepo(owner: string, repo: string, accessToken?: string) {
+  return mapRepo(
+    await githubFetch<GitHubRepoJson>(`/repos/${owner}/${repo}`, {}, accessToken),
+  );
 }
 
-export async function listUserRepos(perPage = 50) {
-  if (!env.GITHUB_TOKEN) {
+/** List repos for the authenticated GitHub user (OAuth token required). */
+export async function listUserRepos(accessToken: string, perPage = 100) {
+  if (!accessToken) {
     throw new HttpError(
-      400,
+      401,
       'github_token_required',
-      'GITHUB_TOKEN is required to list repositories. Add a PAT to .env.',
+      'Sign in with GitHub to list your repositories.',
     );
   }
 
   const raw = await githubFetch<GitHubRepoJson[]>(
     `/user/repos?per_page=${perPage}&sort=updated&affiliation=owner,collaborator,organization_member`,
+    {},
+    accessToken,
   );
   return raw.map(mapRepo);
 }
@@ -118,7 +146,7 @@ export async function getFileContent(
   ref: string,
 ): Promise<string | null> {
   try {
-      const data = await githubFetch<GitHubContentFile>(
+    const data = await githubFetch<GitHubContentFile>(
       `/repos/${owner}/${repo}/contents/${filePath
         .split('/')
         .map((segment) => encodeURIComponent(segment))

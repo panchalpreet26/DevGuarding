@@ -4,11 +4,13 @@ import { Sidebar } from '@/components/layout/Sidebar';
 import { TopNavbar } from '@/components/layout/TopNavbar';
 import { RepoSwitcher } from '@/components/layout/RepoSwitcher';
 import { RepoProvider, useRepo } from '@/context/RepoContext';
+import { useAuth } from '@/context/AuthContext';
 import { Badge } from '@/components/ui/badge';
 import { Loader2 } from 'lucide-react';
 
 function ShellInner() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { user } = useAuth();
   const {
     repos,
     activeRepo,
@@ -33,11 +35,9 @@ function ShellInner() {
       <div className="flex min-w-0 flex-1 flex-col">
         <TopNavbar
           user={{
-            username: 'github',
-            name: 'GitHub',
-            avatarUrl: activeRepo
-              ? `https://github.com/${activeRepo.fullName.split('/')[0]}.png`
-              : 'https://avatars.githubusercontent.com/u/9919?v=4',
+            username: user?.username ?? 'user',
+            name: user?.name ?? user?.username ?? 'User',
+            avatarUrl: user?.avatarUrl ?? '',
           }}
           repos={switcherRepos}
           activeRepoId={activeRepo?.id ?? 0}
@@ -66,7 +66,7 @@ function ShellInner() {
             {reposLoading ? (
               <span className="inline-flex items-center gap-2">
                 <Loader2 className="size-3.5 animate-spin" />
-                Loading repositories…
+                Loading your GitHub repositories…
               </span>
             ) : (
               <span className="inline-flex flex-wrap items-center gap-2">

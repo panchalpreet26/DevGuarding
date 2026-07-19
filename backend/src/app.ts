@@ -1,7 +1,10 @@
 import express, { type Express } from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import routes from './routes/index.js';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
+import { attachUser } from './middleware/auth.js';
+import { bindGithubToken } from './middleware/githubContext.js';
 import { env } from './config/env.js';
 
 /** Build and configure the Express app (no listen — kept testable). */
@@ -15,6 +18,9 @@ export function createApp(): Express {
     }),
   );
   app.use(express.json({ limit: '5mb' }));
+  app.use(cookieParser());
+  app.use(attachUser);
+  app.use(bindGithubToken);
 
   app.use('/api', routes);
 

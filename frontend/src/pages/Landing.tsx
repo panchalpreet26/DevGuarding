@@ -1,14 +1,25 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { ShieldCheck, Github, Loader2, ArrowRight } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { ShieldCheck, Github, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { api, ApiRequestError } from '@/services/api';
+import { useAuth } from '@/context/AuthContext';
 
 type Health = { status: string; service: string; env: string };
 
-/** Public landing page. Also pings the backend so M1 wiring is visibly proven. */
+/** Public landing page with GitHub OAuth sign-in. */
 export default function Landing() {
+  const { user, loading: authLoading, loginWithGithub, oauthConfigured } = useAuth();
+  const navigate = useNavigate();
+  const [params] = useSearchParams();
   const [health, setHealth] = useState<'checking' | 'up' | 'down'>('checking');
+  const authError = params.get('authError');
+
+  useEffect(() => {
+    if (!authLoading && user) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [authLoading, user, navigate]);
 
   useEffect(() => {
     api
@@ -25,7 +36,7 @@ export default function Landing() {
       <div className="container flex min-h-screen flex-col items-center justify-center gap-8 text-center">
         <div className="flex items-center gap-3">
           <ShieldCheck className="size-10 text-primary" />
-          <h1 className="text-4xl font-bold tracking-tight">DevGuardian AI</h1>
+          <h1 className="font-display text-4xl font-bold tracking-tight">DevGuardian AI</h1>
         </div>
 
         <p className="max-w-xl text-lg text-muted-foreground">
@@ -33,18 +44,30 @@ export default function Landing() {
           knowledge, and catch breaking API changes before they ship.
         </p>
 
-        <div className="flex flex-wrap items-center justify-center gap-3">
-          <Button size="lg" disabled>
+        <div className="flex flex-col items-center gap-3">
+          <Button
+            size="lg"
+            onClick={loginWithGithub}
+            disabled={authLoading || health === 'down'}
+          >
             <Github className="size-4" />
             Continue with GitHub
-            <span className="ml-1 text-xs opacity-70">(Milestone 2)</span>
           </Button>
-          <Button size="lg" variant="outline" asChild>
-            <Link to="/dashboard">
-              Open dashboard
-              <ArrowRight className="size-4" />
-            </Link>
-          </Button>
+
+          {!oauthConfigured && health === 'up' && (
+            <p className="max-w-md text-xs text-warning">
+              Backend is up, but GitHub OAuth env vars are missing. Add{' '}
+              <code className="font-mono">GITHUB_CLIENT_ID</code> and{' '}
+              <code className="font-mono">GITHUB_CLIENT_SECRET</code> to{' '}
+              <code className="font-mono">.env</code>, then restart the backend.
+            </p>
+          )}
+
+          {authError && (
+            <p className="max-w-md text-sm text-destructive">
+              Sign-in failed: {decodeURIComponent(authError)}
+            </p>
+          )}
         </div>
 
         <div className="flex items-center gap-2 text-sm text-muted-foreground">

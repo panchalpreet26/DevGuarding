@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
+import { RequireAuth } from '@/components/auth/RequireAuth';
 import { AppShell } from '@/layouts/AppShell';
 import ChatPage from '@/pages/Chat';
 import Dashboard from '@/pages/Dashboard';
@@ -13,21 +14,23 @@ export default function App() {
     <Routes>
       <Route path="/" element={<Landing />} />
 
-      <Route element={<AppShell />}>
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/repository" element={<RepositoryPage />} />
-        <Route path="/chat" element={<ChatPage />} />
-        <Route path="/knowledge" element={<KnowledgePage />} />
-        <Route path="/guardian" element={<GuardianPage />} />
-        <Route
-          path="/settings"
-          element={
-            <FeaturePage
-              title="Settings"
-              description="Manage account, connected repositories, and AI preferences."
-            />
-          }
-        />
+      <Route element={<RequireAuth />}>
+        <Route element={<AppShell />}>
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/repository" element={<RepositoryPage />} />
+          <Route path="/chat" element={<ChatPage />} />
+          <Route path="/knowledge" element={<KnowledgePage />} />
+          <Route path="/guardian" element={<GuardianPage />} />
+          <Route
+            path="/settings"
+            element={
+              <FeaturePage
+                title="Settings"
+                description="Manage account, connected repositories, and AI preferences."
+              />
+            }
+          />
+        </Route>
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

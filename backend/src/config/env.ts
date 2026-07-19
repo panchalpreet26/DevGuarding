@@ -16,12 +16,13 @@ type EnvShape = {
   NODE_ENV: string;
   PORT: number;
   CLIENT_ORIGIN: string[];
+  CLIENT_URL: string;
   MONGODB_URI?: string;
   JWT_SECRET?: string;
   GITHUB_CLIENT_ID?: string;
   GITHUB_CLIENT_SECRET?: string;
   GITHUB_CALLBACK_URL?: string;
-  /** Personal access token (or OAuth token later) for GitHub REST API. */
+  /** Optional fallback PAT when no OAuth session is present. */
   GITHUB_TOKEN?: string;
   OPENAI_API_KEY?: string;
   OPENAI_MODEL: string;
@@ -41,6 +42,7 @@ export const env: EnvShape = {
   CLIENT_ORIGIN: (process.env.CLIENT_ORIGIN ?? 'http://localhost:5173')
     .split(',')
     .map((origin) => origin.trim()),
+  CLIENT_URL: process.env.CLIENT_URL ?? 'http://localhost:5173',
   MONGODB_URI: process.env.MONGODB_URI,
   JWT_SECRET: process.env.JWT_SECRET,
   GITHUB_CLIENT_ID: process.env.GITHUB_CLIENT_ID,

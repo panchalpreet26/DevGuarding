@@ -71,39 +71,15 @@ export function RepoProvider({ children }: { children: ReactNode }) {
       const list = await fetchRepos();
       setRepos(list);
       if (!list.length) {
-        setReposError('No repositories returned. Check GITHUB_TOKEN scopes.');
+        setReposError('No repositories found for this GitHub account.');
       }
     } catch (err) {
       const message =
         err instanceof ApiRequestError
           ? err.message
-          : 'Could not load repositories. Set GITHUB_TOKEN in .env.';
-      // Public demo targets so analysis still works without a PAT (rate-limited).
-      setRepos([
-        {
-          id: 10270250,
-          name: 'express',
-          fullName: 'expressjs/express',
-          private: false,
-          description: 'Fast, unopinionated, minimalist web framework for Node.js',
-          defaultBranch: 'master',
-          language: 'JavaScript',
-          htmlUrl: 'https://github.com/expressjs/express',
-          updatedAt: new Date().toISOString(),
-        },
-        {
-          id: 23096959,
-          name: 'axios',
-          fullName: 'axios/axios',
-          private: false,
-          description: 'Promise based HTTP client for the browser and node.js',
-          defaultBranch: 'v1.x',
-          language: 'JavaScript',
-          htmlUrl: 'https://github.com/axios/axios',
-          updatedAt: new Date().toISOString(),
-        },
-      ]);
-      setReposError(`${message} Showing public demo repos instead.`);
+          : 'Could not load repositories. Sign in with GitHub again.';
+      setRepos([]);
+      setReposError(message);
     } finally {
       setReposLoading(false);
     }

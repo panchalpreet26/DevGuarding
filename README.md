@@ -43,12 +43,25 @@ npm install
 
 # 2. Configure env
 cp .env.example .env
-# Set GITHUB_TOKEN (PAT) to list your repos and raise API rate limits.
-# Public repos can still be analyzed without a token (rate-limited).
+# Required for GitHub login:
+#   GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET  (OAuth App)
+#   JWT_SECRET
+#   CLIENT_URL=http://localhost:5173
+#   GITHUB_CALLBACK_URL=http://localhost:4000/api/auth/github/callback
 
 # 3. Run both apps
 npm run dev                 # backend :4000  +  frontend :5173
 ```
+
+### GitHub OAuth App setup
+
+1. Open https://github.com/settings/developers → **New OAuth App**
+2. Homepage URL: `http://localhost:5173`
+3. Authorization callback URL: `http://localhost:4000/api/auth/github/callback`
+4. Copy Client ID + Client Secret into `.env`
+5. Restart backend, click **Continue with GitHub**
+
+After login, your real repositories load in the dashboard switcher (no PAT required).
 
 ### API Guardian
 
@@ -93,15 +106,23 @@ Requires `OPENAI_API_KEY` in `.env`.
 
 ### Repository analysis
 
-1. Open `/dashboard` and pick a repo from the switcher (loads from GitHub when `GITHUB_TOKEN` is set).
+1. Sign in with GitHub, open `/dashboard`, and pick a repo from the switcher.
 2. Backend reads README, package.json, folder tree, routes/controllers/services/middleware.
 3. Full report appears on **Repository**; dashboard cards update from the same analysis.
 
 API:
 
-- `GET /api/repos` — list repositories for the token user
+- `GET /api/repos` — list repositories for the signed-in user (requires session cookie)
 - `POST /api/analysis` — `{ "fullName": "owner/repo", "force": false }`
 - `GET /api/analysis/:owner/:repo` — cached analysis
+
+### Auth API
+
+- `GET /api/auth/github` — start OAuth
+- `GET /api/auth/github/callback` — OAuth callback (sets httpOnly session cookie)
+- `GET /api/auth/me` — current user
+- `POST /api/auth/logout` — clear session
+- `GET /api/auth/status` — whether OAuth env is configured
 
 ## Scripts (root)
 
