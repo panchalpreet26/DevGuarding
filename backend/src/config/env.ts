@@ -55,7 +55,7 @@ export const env: EnvShape = {
   GITHUB_TOKEN: process.env.GITHUB_TOKEN,
   AI_PROVIDER: process.env.AI_PROVIDER,
   GEMINI_API_KEY: process.env.GEMINI_API_KEY,
-  GEMINI_MODEL: process.env.GEMINI_MODEL ?? 'gemini-2.5-flash',
+  GEMINI_MODEL: process.env.GEMINI_MODEL ?? 'gemini-flash-latest',
   OPENAI_API_KEY: process.env.OPENAI_API_KEY,
   OPENAI_MODEL: process.env.OPENAI_MODEL ?? 'gpt-4o-mini',
 };

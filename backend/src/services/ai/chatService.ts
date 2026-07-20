@@ -1,6 +1,6 @@
 import type { ChatHistoryTurn, ChatStreamEvent } from '@devguardian/shared';
 import { buildChatContext } from './contextBuilder.js';
-import { getChatModel, getLlmClient } from './openaiClient.js';
+import { getChatModel, getLlmClient, getLlmProvider } from './openaiClient.js';
 import { logger } from '../../utils/logger.js';
 import { HttpError } from '../../utils/http.js';
 
@@ -82,33 +82,61 @@ export async function* streamRepoChat(params: {
 
   const client = getLlmClient();
   const messages = buildMessages(ctx.contextText, question, history);
-  const model = getChatModel();
+  const preferred = getChatModel();
+  const candidates =
+    getLlmProvider() === 'gemini'
+      ? [...new Set([preferred, 'gemini-flash-latest', 'gemini-2.0-flash'])]
+      : [preferred];
 
-  let stream;
-  try {
-    stream = await client.chat.completions.create({
-      model,
-      messages,
-      stream: true,
-    });
-  } catch (err) {
-    const status = (err as { status?: number }).status;
-    const raw = err instanceof Error ? err.message : String(err);
-    if (status === 429 || /\b429\b/.test(raw)) {
-      throw new HttpError(
-        429,
-        'llm_rate_limited',
-        `AI rate limit hit for model "${model}". Wait ~1 minute and retry, or set GEMINI_MODEL=gemini-2.5-flash (or gemini-1.5-flash) in .env / Render. Free-tier quota: https://ai.google.dev/gemini-api/docs/rate-limits`,
-      );
+  let stream: Awaited<ReturnType<typeof client.chat.completions.create>> | null = null;
+  let modelUsed = preferred;
+  let lastErr: unknown;
+
+  for (const model of candidates) {
+    try {
+      stream = await client.chat.completions.create({
+        model,
+        messages,
+        stream: true,
+      });
+      modelUsed = model;
+      lastErr = undefined;
+      break;
+    } catch (err) {
+      lastErr = err;
+      const status = (err as { status?: number }).status;
+      const raw = err instanceof Error ? err.message : String(err);
+      logger.warn('LLM chat create failed', { model, status, message: raw.slice(0, 160) });
+      if (status === 404 || /\b404\b/.test(raw)) continue;
+      if (status === 429 || /\b429\b/.test(raw)) {
+        throw new HttpError(
+          429,
+          'llm_rate_limited',
+          `AI rate limit hit for model "${model}". Wait ~1 minute and retry. Free-tier docs: https://ai.google.dev/gemini-api/docs/rate-limits`,
+        );
+      }
+      throw err;
     }
-    throw err;
   }
+
+  if (!stream) {
+    throw new HttpError(
+      502,
+      'llm_model_unavailable',
+      `No working Gemini model (tried ${candidates.join(', ')}). Set GEMINI_MODEL=gemini-flash-latest on Render.`,
+      { lastError: lastErr instanceof Error ? lastErr.message : String(lastErr) },
+    );
+  }
+
+  logger.info('LLM stream started', { model: modelUsed });
 
   let answer = '';
 
   try {
-    for await (const chunk of stream) {
-      const text = chunk.choices[0]?.delta?.content;
+    for await (const chunk of stream as AsyncIterable<{
+      choices?: Array<{ delta?: { content?: string | null } }>;
+    }>) {
+      const text = chunk.choices?.[0]?.delta?.content;
       if (!text) continue;
       answer += text;
       yield { type: 'delta', text };
@@ -120,7 +148,7 @@ export async function* streamRepoChat(params: {
       throw new HttpError(
         429,
         'llm_rate_limited',
-        `AI rate limit hit mid-stream for "${model}". Wait and retry, or switch GEMINI_MODEL.`,
+        `AI rate limit hit mid-stream for "${modelUsed}". Wait and retry.`,
       );
     }
     throw err;
