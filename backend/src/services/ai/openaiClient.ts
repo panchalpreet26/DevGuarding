@@ -43,7 +43,7 @@ export function getLlmClient(): OpenAI {
 export function getChatModel(): string {
   const provider = getLlmProvider();
   if (provider === 'gemini') {
-    return env.GEMINI_MODEL || 'gemini-2.0-flash';
+    return env.GEMINI_MODEL || 'gemini-2.5-flash';
   }
   return env.OPENAI_MODEL || 'gpt-4o-mini';
 }
