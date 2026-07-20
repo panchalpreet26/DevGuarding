@@ -77,13 +77,24 @@ async function githubFetch<T>(
     throw new HttpError(
       401,
       'github_auth_failed',
-      'GitHub rejected the request. Sign in with GitHub again or check OAuth scopes (repo).',
+      'GitHub rejected the request. Sign in with GitHub again or check OAuth scopes (public_repo).',
       { status: res.status, body: body.slice(0, 200) },
+    );
+  }
+  // Empty repos (and some unavailable git DBs) return 409 on tree/blob endpoints.
+  if (res.status === 409) {
+    const body = await res.text();
+    throw new HttpError(
+      409,
+      'github_repo_empty',
+      'This GitHub repository is empty (no commits yet). Push at least one commit, then retry analysis.',
+      { body: body.slice(0, 300) },
     );
   }
   if (!res.ok) {
     const body = await res.text();
-    throw new HttpError(502, 'github_error', `GitHub API error ${res.status}`, {
+    const status = res.status >= 500 ? 502 : res.status;
+    throw new HttpError(status, 'github_error', `GitHub API error ${res.status}`, {
       body: body.slice(0, 300),
     });
   }
@@ -171,10 +182,17 @@ export function assertRepoConnected(fullName: string, selectedFullNames: string[
 
 /** Recursive file tree for the default (or given) branch. */
 export async function getRepoTree(owner: string, repo: string, ref: string) {
-  const data = await githubFetch<{ tree: GitHubTreeItem[]; truncated: boolean }>(
-    `/repos/${owner}/${repo}/git/trees/${encodeURIComponent(ref)}?recursive=1`,
-  );
-  return data;
+  try {
+    return await githubFetch<{ tree: GitHubTreeItem[]; truncated: boolean }>(
+      `/repos/${owner}/${repo}/git/trees/${encodeURIComponent(ref)}?recursive=1`,
+    );
+  } catch (err) {
+    // Empty / uninitialized repos cannot expose a tree — return empty so analysis can continue.
+    if (err instanceof HttpError && err.code === 'github_repo_empty') {
+      return { tree: [] as GitHubTreeItem[], truncated: false };
+    }
+    throw err;
+  }
 }
 
 /** Read a text file from the repo. Returns null if missing. */

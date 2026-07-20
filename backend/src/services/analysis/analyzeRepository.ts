@@ -47,6 +47,27 @@ export async function analyzeRepository(fullName: string): Promise<RepositoryAna
   logger.info('Starting repository analysis', { repo: meta.fullName });
 
   const { tree: flatTree } = await getRepoTree(owner, repo, meta.defaultBranch);
+  if (flatTree.length === 0) {
+    logger.warn('Repository tree is empty — returning minimal analysis', {
+      repo: meta.fullName,
+    });
+    const empty: RepositoryAnalysis = {
+      repoFullName: meta.fullName,
+      summary:
+        'This repository has no commits yet (empty Git tree). Push code to GitHub, then re-run analysis.',
+      techStack: meta.language ? [meta.language] : [],
+      frameworks: [],
+      database: null,
+      folderTree: { name: meta.name, path: '', type: 'dir', children: [] },
+      endpoints: [],
+      authFlow: 'No code available to detect authentication.',
+      architectureDiagram: 'Empty repository — no architecture to diagram yet.',
+      analyzedAt: new Date().toISOString(),
+    };
+    cache.set(key, empty);
+    return empty;
+  }
+
   const blobPaths = flatTree.filter((t: GitHubTreeItem) => t.type === 'blob').map((t) => t.path);
 
   const classified = classifySourcePaths(blobPaths);
