@@ -65,15 +65,18 @@ After login, your real repositories load in the dashboard switcher (no PAT requi
 
 ### API Guardian
 
-Upload OpenAPI/Swagger JSON and compare against repository routes:
+Upload OpenAPI/Swagger JSON **or** run without Swagger:
 
-- Endpoints & methods
-- Request / response fields
-- Validation signals
+- **Frontend ↔ backend scan** — compare `fetch` / `axios` / `api.*` calls to Express routes
+- **Repo OpenAPI** — if `openapi.json` / `swagger.json` already lives in the repo
+- **Draft OpenAPI** — download a starter spec generated from backend routes
 
 Report shows severity (Critical / High / Medium / Low), affected files, and suggested fixes.
 
 - `POST /api/guardian/compare` — `{ repoFullName, swagger }`
+- `POST /api/guardian/scan-clients` — `{ repoFullName }` (no swagger)
+- `POST /api/guardian/compare-repo-spec` — `{ repoFullName }`
+- `POST /api/guardian/draft-openapi` — `{ repoFullName }`
 - `GET /api/guardian/:owner/:repo` — cached report
 
 ### Engineering Memory
