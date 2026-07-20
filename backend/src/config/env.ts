@@ -24,6 +24,10 @@ type EnvShape = {
   GITHUB_CALLBACK_URL?: string;
   /** Optional fallback PAT when no OAuth session is present. */
   GITHUB_TOKEN?: string;
+  /** google | openai — auto-picks Gemini when GEMINI_API_KEY is set */
+  AI_PROVIDER?: string;
+  GEMINI_API_KEY?: string;
+  GEMINI_MODEL: string;
   OPENAI_API_KEY?: string;
   OPENAI_MODEL: string;
 };
@@ -49,6 +53,9 @@ export const env: EnvShape = {
   GITHUB_CLIENT_SECRET: process.env.GITHUB_CLIENT_SECRET,
   GITHUB_CALLBACK_URL: process.env.GITHUB_CALLBACK_URL,
   GITHUB_TOKEN: process.env.GITHUB_TOKEN,
+  AI_PROVIDER: process.env.AI_PROVIDER,
+  GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+  GEMINI_MODEL: process.env.GEMINI_MODEL ?? 'gemini-2.0-flash',
   OPENAI_API_KEY: process.env.OPENAI_API_KEY,
   OPENAI_MODEL: process.env.OPENAI_MODEL ?? 'gpt-4o-mini',
 };

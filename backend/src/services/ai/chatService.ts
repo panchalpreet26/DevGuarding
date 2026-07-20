@@ -1,6 +1,6 @@
 import type { ChatHistoryTurn, ChatStreamEvent } from '@devguardian/shared';
 import { buildChatContext } from './contextBuilder.js';
-import { getChatModel, getOpenAI } from './openaiClient.js';
+import { getChatModel, getLlmClient } from './openaiClient.js';
 import { logger } from '../../utils/logger.js';
 
 const SYSTEM_INSTRUCTIONS = `You are DevGuardian AI, an engineering assistant that answers ONLY using the provided repository context.
@@ -19,12 +19,13 @@ function looksUnknown(answer: string): boolean {
   return /^i don't know this yet/i.test(answer.trim());
 }
 
-function buildInput(
+function buildMessages(
   contextText: string,
   question: string,
   history: ChatHistoryTurn[] = [],
-): Array<{ role: 'user' | 'assistant'; content: string }> {
-  const turns: Array<{ role: 'user' | 'assistant'; content: string }> = [
+): Array<{ role: 'system' | 'user' | 'assistant'; content: string }> {
+  const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
+    { role: 'system', content: SYSTEM_INSTRUCTIONS },
     {
       role: 'user',
       content: `Repository context:\n\n${contextText}`,
@@ -37,15 +38,16 @@ function buildInput(
   ];
 
   for (const turn of history.slice(-8)) {
-    turns.push({ role: turn.role, content: turn.content });
+    messages.push({ role: turn.role, content: turn.content });
   }
 
-  turns.push({ role: 'user', content: question });
-  return turns;
+  messages.push({ role: 'user', content: question });
+  return messages;
 }
 
 /**
- * Stream a grounded answer. Strong engineering-memory matches short-circuit OpenAI.
+ * Stream a grounded answer. Strong engineering-memory matches short-circuit the model.
+ * Uses chat.completions so Gemini (OpenAI-compat) and OpenAI both work.
  */
 export async function* streamRepoChat(params: {
   repoFullName: string;
@@ -77,25 +79,22 @@ export async function* streamRepoChat(params: {
     return;
   }
 
-  const openai = getOpenAI();
-  const input = buildInput(ctx.contextText, question, history);
+  const client = getLlmClient();
+  const messages = buildMessages(ctx.contextText, question, history);
 
-  const stream = await openai.responses.create({
+  const stream = await client.chat.completions.create({
     model: getChatModel(),
-    instructions: SYSTEM_INSTRUCTIONS,
-    input,
+    messages,
     stream: true,
   });
 
   let answer = '';
 
-  for await (const event of stream) {
-    if (event.type === 'response.output_text.delta') {
-      const text = event.delta;
-      if (!text) continue;
-      answer += text;
-      yield { type: 'delta', text };
-    }
+  for await (const chunk of stream) {
+    const text = chunk.choices[0]?.delta?.content;
+    if (!text) continue;
+    answer += text;
+    yield { type: 'delta', text };
   }
 
   yield {
