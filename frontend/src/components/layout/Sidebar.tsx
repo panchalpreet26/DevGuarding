@@ -42,7 +42,8 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 
       <aside
         className={cn(
-          'fixed h-screen left-0 z-50 flex w-60 flex-col border-r border-sidebar-border bg-sidebar transition-transform lg:sticky lg:translate-x-0',
+          // Always fixed — lg:sticky put the aside back in document flow so it scrolled with the page.
+          'fixed inset-y-0 left-0 z-50 flex w-60 flex-col border-r border-sidebar-border bg-sidebar transition-transform lg:translate-x-0',
           open ? 'translate-x-0' : '-translate-x-full',
         )}
       >

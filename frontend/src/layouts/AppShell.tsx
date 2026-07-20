@@ -29,10 +29,11 @@ function ShellInner() {
   }));
 
   return (
-    <div className="flex min-h-screen bg-background text-foreground">
+    <div className="flex h-screen overflow-hidden bg-background text-foreground">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      {/* lg:ml-60 reserves space for the fixed sidebar (w-60) */}
+      <div className="flex min-w-0 flex-1 flex-col lg:ml-60">
         <TopNavbar
           user={{
             username: user?.username ?? 'user',
