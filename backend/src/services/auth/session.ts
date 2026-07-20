@@ -1,34 +1,99 @@
 import jwt from 'jsonwebtoken';
-import { env, isProd } from '../../config/env.js';
+import { randomUUID } from 'node:crypto';
+import { isMongoConnected } from '../../config/db.js';
+import { jwtSecret } from '../../config/secrets.js';
+import { SessionModel } from '../../models/Session.js';
 import { HttpError } from '../../utils/http.js';
+import { isProd } from '../../config/env.js';
 
 const COOKIE_NAME = 'dg_session';
 const SESSION_DAYS = 14;
 
 type SessionPayload = {
   sub: string;
+  jti: string;
 };
 
-function jwtSecret(): string {
-  return env.JWT_SECRET && env.JWT_SECRET !== 'replace_me_with_a_long_random_string'
-    ? env.JWT_SECRET
-    : 'devguardian-dev-secret-change-me';
+export type CreateSessionInput = {
+  userId: string;
+  userAgent?: string | null;
+  ip?: string | null;
+};
+
+function requireMongoForSessions(): void {
+  if (!isMongoConnected()) {
+    throw new HttpError(
+      503,
+      'mongo_required',
+      'MongoDB is required for sign-in sessions. Start Mongo or set MONGODB_URI.',
+    );
+  }
 }
 
-export function signSession(userId: string): string {
-  return jwt.sign({ sub: userId } satisfies SessionPayload, jwtSecret(), {
+export async function createSession(input: CreateSessionInput): Promise<string> {
+  requireMongoForSessions();
+
+  const jti = randomUUID();
+  const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
+
+  await SessionModel.create({
+    jti,
+    userId: input.userId,
+    expiresAt,
+    userAgent: input.userAgent ?? null,
+    ip: input.ip ?? null,
+  });
+
+  return jwt.sign({ sub: input.userId, jti } satisfies SessionPayload, jwtSecret(), {
     expiresIn: `${SESSION_DAYS}d`,
   });
 }
 
-export function verifySession(token: string): string {
+/** Verify JWT + Mongo session row; returns userId. */
+export async function verifySession(token: string): Promise<string> {
+  requireMongoForSessions();
+
+  let payload: SessionPayload;
   try {
-    const payload = jwt.verify(token, jwtSecret()) as SessionPayload;
-    if (!payload.sub) throw new Error('missing sub');
-    return payload.sub;
+    payload = jwt.verify(token, jwtSecret()) as SessionPayload;
   } catch {
     throw new HttpError(401, 'invalid_session', 'Session expired or invalid. Sign in again.');
   }
+
+  if (!payload.sub || !payload.jti) {
+    throw new HttpError(401, 'invalid_session', 'Session expired or invalid. Sign in again.');
+  }
+
+  const row = await SessionModel.findOne({ jti: payload.jti }).exec();
+  if (!row || row.revokedAt || row.expiresAt.getTime() <= Date.now() || row.userId !== payload.sub) {
+    throw new HttpError(401, 'invalid_session', 'Session expired or invalid. Sign in again.');
+  }
+
+  return payload.sub;
+}
+
+export async function revokeSessionByToken(token: string | undefined): Promise<void> {
+  if (!token || !isMongoConnected()) return;
+
+  try {
+    const payload = jwt.verify(token, jwtSecret(), { ignoreExpiration: true }) as SessionPayload;
+    if (!payload.jti) return;
+    await SessionModel.updateOne(
+      { jti: payload.jti, revokedAt: null },
+      { $set: { revokedAt: new Date() } },
+    ).exec();
+  } catch {
+    // Cookie already invalid — nothing to revoke.
+  }
+}
+
+export async function revokeAllSessionsForUser(userId: string): Promise<number> {
+  requireMongoForSessions();
+  const result = await SessionModel.updateMany(
+    { userId, revokedAt: null },
+    { $set: { revokedAt: new Date() } },
+  ).exec();
+  return result.modifiedCount;
 }
 
 /**

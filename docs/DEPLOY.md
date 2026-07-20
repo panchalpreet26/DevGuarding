@@ -46,8 +46,9 @@ Railway can replace Render if you prefer; same env vars apply.
 | `NODE_ENV` | `production` |
 | `CLIENT_ORIGIN` | `https://YOUR-APP.vercel.app` |
 | `CLIENT_URL` | `https://YOUR-APP.vercel.app` |
-| `MONGODB_URI` | Atlas URI from step 1 |
-| `JWT_SECRET` | long random string (`openssl rand -hex 32`) |
+| `MONGODB_URI` | Atlas URI from step 1 (required for auth sessions) |
+| `JWT_SECRET` | strong random string (`openssl rand -hex 32`) — production refuses placeholders |
+| `ENCRYPTION_KEY` | optional; defaults to `JWT_SECRET` for encrypting GitHub tokens |
 | `GITHUB_CLIENT_ID` | from GitHub OAuth App |
 | `GITHUB_CLIENT_SECRET` | from GitHub OAuth App |
 | `GITHUB_CALLBACK_URL` | `https://YOUR-SERVICE.onrender.com/api/auth/github/callback` |
@@ -78,6 +79,8 @@ GitHub OAuth Apps allow **one** callback URL. For production:
 3. **Authorization callback URL:**  
    `https://YOUR-SERVICE.onrender.com/api/auth/github/callback`
 4. Put the Client ID / Secret into Render env (and keep a separate local OAuth app for `localhost` if needed).
+5. Users re-authorize once for scopes `repo` + `read:org` (private and org repos).
+6. Optional GitHub App: set `GITHUB_APP_ID`, `GITHUB_APP_SLUG`, `GITHUB_APP_PRIVATE_KEY` on Render; Setup URL = `https://YOUR-SERVICE.onrender.com/api/auth/github/app/callback`.
 
 ---
 

@@ -7,6 +7,6 @@ export interface User {
   email: string | null;
   avatarUrl: string;
   createdAt: string;
-  /** Public repos the user connected for analysis (owner/repo). */
+  /** Repos the user connected for analysis (owner/repo), public or private. */
   selectedRepos: string[];
 }

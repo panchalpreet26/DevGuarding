@@ -5,7 +5,8 @@ const GITHUB_AUTHORIZE = 'https://github.com/login/oauth/authorize';
 const GITHUB_TOKEN = 'https://github.com/login/oauth/access_token';
 const GITHUB_API = 'https://api.github.com';
 
-const SCOPES = ['read:user', 'user:email', 'public_repo'].join(' ');
+/** Private + public repos the user can access (personal and org). */
+const SCOPES = ['read:user', 'user:email', 'repo', 'read:org'].join(' ');
 
 function requireOAuthConfig(): { clientId: string; clientSecret: string; callbackUrl: string } {
   const clientId = env.GITHUB_CLIENT_ID;
@@ -145,3 +146,27 @@ async function fetchPrimaryEmail(accessToken: string): Promise<string | null> {
     return null;
   }
 }
+
+/** Revoke a user OAuth token via the OAuth App credentials. */
+export async function revokeGithubToken(accessToken: string): Promise<void> {
+  const { clientId, clientSecret } = requireOAuthConfig();
+  const basic = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+
+  try {
+    await fetch(`${GITHUB_API}/applications/${clientId}/token`, {
+      method: 'DELETE',
+      headers: {
+        Accept: 'application/vnd.github+json',
+        Authorization: `Basic ${basic}`,
+        'Content-Type': 'application/json',
+        'User-Agent': 'DevGuardian-AI',
+        'X-GitHub-Api-Version': '2022-11-28',
+      },
+      body: JSON.stringify({ access_token: accessToken }),
+    });
+  } catch {
+    // Best-effort revoke — session is already cleared locally.
+  }
+}
+
+export { SCOPES };

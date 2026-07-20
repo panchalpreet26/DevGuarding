@@ -1,28 +1,32 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Check, Loader2 } from 'lucide-react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Check, Loader2, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/context/AuthContext';
 import { useRepo } from '@/context/RepoContext';
-import { ApiRequestError } from '@/services/api';
+import { ApiRequestError, api } from '@/services/api';
 import { fetchAvailableRepos, saveRepoSelection } from '@/services/analysis';
 import type { Repository } from '@devguardian/shared';
 import { cn } from '@/lib/utils';
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:4000/api';
+
 /**
- * Pick which public GitHub repos DevGuardian may analyze.
- * Private repos never appear here.
+ * Pick which GitHub repos (public or private) DevGuardian may analyze.
  */
 export default function SelectReposPage() {
   const navigate = useNavigate();
-  const { refresh: refreshAuth } = useAuth();
+  const [params] = useSearchParams();
+  const { refresh: refreshAuth, oauthConfigured } = useAuth();
   const { refreshRepos } = useRepo();
   const [available, setAvailable] = useState<Repository[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [githubAppConfigured, setGithubAppConfigured] = useState(false);
+  const installedAccount = params.get('installed');
 
   useEffect(() => {
     let cancelled = false;
@@ -30,16 +34,20 @@ export default function SelectReposPage() {
       setLoading(true);
       setError(null);
       try {
-        const data = await fetchAvailableRepos();
+        const [data, status] = await Promise.all([
+          fetchAvailableRepos(),
+          api.get<{ configured: boolean; githubAppConfigured?: boolean }>('/auth/status'),
+        ]);
         if (cancelled) return;
         setAvailable(data.repos);
         setSelected(new Set(data.selectedRepos));
+        setGithubAppConfigured(Boolean(status.githubAppConfigured));
       } catch (err) {
         if (cancelled) return;
         setError(
           err instanceof ApiRequestError
             ? err.message
-            : 'Could not load public repositories from GitHub.',
+            : 'Could not load repositories from GitHub.',
         );
       } finally {
         if (!cancelled) setLoading(false);
@@ -85,23 +93,42 @@ export default function SelectReposPage() {
     <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
       <div className="mb-8 space-y-2">
         <Badge variant="secondary">Connect repositories</Badge>
-        <h1 className="text-2xl font-semibold tracking-tight">Choose public repos</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Choose repositories</h1>
         <p className="text-sm text-muted-foreground">
-          Only repositories you select here are available for Analysis, Chat, Knowledge, and
-          Guardian. Private repos are never listed.
+          Select public or private repos you can access. Only what you pick here is available for
+          Analysis, Chat, Knowledge, and Guardian.
         </p>
+        {installedAccount && (
+          <p className="text-sm text-green-500">
+            GitHub App installed for <span className="font-mono">{installedAccount}</span>. Org
+            repos from that install appear below.
+          </p>
+        )}
+        {githubAppConfigured && oauthConfigured && (
+          <p className="text-xs text-muted-foreground">
+            Org admin?{' '}
+            <a
+              className="underline underline-offset-2"
+              href={`${API_BASE}/auth/github/app/install`}
+            >
+              Install the GitHub App
+            </a>{' '}
+            so the team can connect org repos without each member re-authorizing.
+          </p>
+        )}
       </div>
 
       {loading ? (
         <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
           <Loader2 className="size-4 animate-spin" />
-          Loading your public GitHub repositories…
+          Loading your GitHub repositories…
         </div>
       ) : error ? (
         <p className="text-sm text-destructive">{error}</p>
       ) : sorted.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          No public repositories found on this GitHub account.
+          No repositories found. Re-authorize GitHub (repo scope) or install the GitHub App on your
+          org.
         </p>
       ) : (
         <ul className="divide-y divide-border rounded-lg border border-border bg-card/40">
@@ -129,8 +156,9 @@ export default function SelectReposPage() {
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-mono text-sm">{repo.fullName}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {repo.language ?? 'Unknown'} · Public
+                    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                      {repo.language ?? 'Unknown'} · {repo.private ? 'Private' : 'Public'}
+                      {repo.private ? <Lock className="size-3" /> : null}
                     </span>
                   </span>
                 </button>

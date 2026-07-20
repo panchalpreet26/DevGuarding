@@ -7,19 +7,50 @@ import { useAuth } from '@/context/AuthContext';
 
 type Health = { status: string; service: string; env: string };
 
+const AUTH_ERROR_COPY: Record<string, string> = {
+  missing_code: 'GitHub did not return an authorization code. Try again.',
+  invalid_state: 'Sign-in was interrupted (security check failed). Try again.',
+  oauth_exchange_failed: 'Could not complete GitHub authorization. Try again.',
+  oauth_not_configured: 'GitHub OAuth is not configured on the server.',
+  mongo_required: 'Database is unavailable. Sign-in requires MongoDB.',
+  oauth_failed: 'Sign-in failed. Try again.',
+  rate_limited: 'Too many sign-in attempts. Wait a minute and try again.',
+};
+
 /** Public landing page with GitHub OAuth sign-in. */
 export default function Landing() {
   const { user, loading: authLoading, loginWithGithub, oauthConfigured } = useAuth();
   const navigate = useNavigate();
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
   const [health, setHealth] = useState<'checking' | 'up' | 'down'>('checking');
-  const authError = params.get('authError');
+  const [authErrorText, setAuthErrorText] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authLoading && user) {
       navigate('/dashboard', { replace: true });
     }
   }, [authLoading, user, navigate]);
+
+  useEffect(() => {
+    const code = params.get('authError');
+    const messageParam = params.get('authMessage');
+    if (!code && !messageParam) return;
+
+    let message = AUTH_ERROR_COPY[code ?? ''] ?? 'Sign-in failed. Try again.';
+    if (messageParam) {
+      try {
+        message = decodeURIComponent(messageParam);
+      } catch {
+        message = messageParam;
+      }
+    }
+    setAuthErrorText(message);
+
+    const next = new URLSearchParams(params);
+    next.delete('authError');
+    next.delete('authMessage');
+    setParams(next, { replace: true });
+  }, [params, setParams]);
 
   useEffect(() => {
     api
@@ -54,6 +85,11 @@ export default function Landing() {
             Continue with GitHub
           </Button>
 
+          <p className="max-w-md text-xs text-muted-foreground">
+            GitHub will ask for repository access (including private repos you choose to connect).
+            DevGuardian only analyzes repositories you explicitly select.
+          </p>
+
           {!oauthConfigured && health === 'up' && (
             <p className="max-w-md text-xs text-warning">
               Backend is up, but GitHub OAuth env vars are missing. Add{' '}
@@ -63,10 +99,8 @@ export default function Landing() {
             </p>
           )}
 
-          {authError && (
-            <p className="max-w-md text-sm text-destructive">
-              Sign-in failed: {decodeURIComponent(authError)}
-            </p>
+          {authErrorText && (
+            <p className="max-w-md text-sm text-destructive">{authErrorText}</p>
           )}
         </div>
 

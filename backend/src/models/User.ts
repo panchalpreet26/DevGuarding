@@ -11,8 +11,11 @@ const userSchema = new Schema(
     name: { type: String, default: null },
     email: { type: String, default: null },
     avatarUrl: { type: String, required: true },
-    accessTokenEnc: { type: String, required: true },
+    accessTokenEnc: { type: String, default: null },
     selectedRepos: { type: [String], default: [] },
+    lastLoginAt: { type: Date, default: null },
+    lastLoginIp: { type: String, default: null },
+    lastLoginUserAgent: { type: String, default: null },
   },
   {
     timestamps: true,

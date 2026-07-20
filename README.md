@@ -118,11 +118,16 @@ API:
 
 ### Auth API
 
-- `GET /api/auth/github` — start OAuth
-- `GET /api/auth/github/callback` — OAuth callback (sets httpOnly session cookie)
+- `GET /api/auth/github` — start OAuth (`repo` + `read:org` scopes for private/org repos)
+- `GET /api/auth/github/callback` — OAuth callback (sets httpOnly session cookie; session row in Mongo)
+- `GET /api/auth/github/app/install` — optional GitHub App install (org shared access)
+- `GET /api/auth/github/app/callback` — App setup URL callback
 - `GET /api/auth/me` — current user
-- `POST /api/auth/logout` — clear session
-- `GET /api/auth/status` — whether OAuth env is configured
+- `POST /api/auth/logout` — revoke this session + GitHub token
+- `POST /api/auth/logout-all` — revoke every session for the user
+- `GET /api/auth/status` — whether OAuth / GitHub App env is configured
+
+Sign-in **requires MongoDB** (sessions are revocable server-side). Re-authorize once after upgrading so GitHub grants the new `repo` scope.
 
 ## Scripts (root)
 

@@ -1,12 +1,11 @@
 import crypto from 'node:crypto';
-import { env } from '../config/env.js';
+import { encryptionSecret } from '../config/secrets.js';
 
 const ALGO = 'aes-256-gcm';
 const IV_LEN = 12;
 
 function keyFromSecret(): Buffer {
-  const secret = env.JWT_SECRET ?? 'devguardian-dev-secret-change-me';
-  return crypto.createHash('sha256').update(secret).digest();
+  return crypto.createHash('sha256').update(encryptionSecret()).digest();
 }
 
 /** Encrypt a GitHub access token for at-rest storage. */

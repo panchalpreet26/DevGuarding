@@ -1,4 +1,4 @@
-import { LogOut, Settings } from 'lucide-react';
+import { LogOut, Settings, ShieldOff } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import type { DashboardUser } from '@/types/dashboard';
 import { useAuth } from '@/context/AuthContext';
+import { api } from '@/services/api';
 
 interface UserMenuProps {
   user: DashboardUser;
@@ -25,6 +26,14 @@ export function UserMenu({ user }: UserMenuProps) {
     .join('')
     .slice(0, 2)
     .toUpperCase();
+
+  async function logoutEverywhere() {
+    try {
+      await api.post('/auth/logout-all');
+    } finally {
+      window.location.href = '/';
+    }
+  }
 
   return (
     <DropdownMenu>
@@ -60,6 +69,13 @@ export function UserMenu({ user }: UserMenuProps) {
         >
           <LogOut className="size-4" />
           Sign out
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          className="text-destructive focus:text-destructive"
+          onSelect={() => void logoutEverywhere()}
+        >
+          <ShieldOff className="size-4" />
+          Sign out everywhere
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -1,11 +1,18 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { env } from '../../config/env.js';
 import { HttpError } from '../../utils/http.js';
+import { clearAccessToken } from '../auth/userStore.js';
+import { revokeAllSessionsForUser } from '../auth/session.js';
+import { listInstallationRepos, resolveTokenForRepo } from '../auth/githubApp.js';
+import { logger } from '../../utils/logger.js';
 
 const GITHUB_API = 'https://api.github.com';
 
 /** Per-request GitHub token (from OAuth session). Falls back to env.GITHUB_TOKEN. */
-export const githubTokenStore = new AsyncLocalStorage<{ token?: string }>();
+export const githubTokenStore = new AsyncLocalStorage<{
+  token?: string;
+  userId?: string;
+}>();
 
 export type GitHubTreeItem = {
   path: string;
@@ -40,6 +47,28 @@ function resolveToken(explicit?: string): string | undefined {
   return explicit ?? githubTokenStore.getStore()?.token ?? env.GITHUB_TOKEN;
 }
 
+async function handleGithubAuthFailure(status: number, body: string): Promise<never> {
+  const store = githubTokenStore.getStore();
+  if (store?.userId && status === 401) {
+    try {
+      await clearAccessToken(store.userId);
+      await revokeAllSessionsForUser(store.userId);
+      logger.warn('Cleared GitHub token and sessions after 401', { userId: store.userId });
+    } catch (err) {
+      logger.error('Failed to clear token after GitHub 401', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  throw new HttpError(
+    401,
+    'github_auth_failed',
+    'GitHub rejected the request. Sign in with GitHub again to refresh access.',
+    { status, body: body.slice(0, 200) },
+  );
+}
+
 async function githubFetch<T>(
   path: string,
   init: RequestInit = {},
@@ -72,13 +101,17 @@ async function githubFetch<T>(
   if (res.status === 404) {
     throw new HttpError(404, 'github_not_found', `GitHub resource not found: ${path}`);
   }
-  if (res.status === 401 || res.status === 403) {
+  if (res.status === 401) {
+    const body = await res.text();
+    await handleGithubAuthFailure(res.status, body);
+  }
+  if (res.status === 403) {
     const body = await res.text();
     throw new HttpError(
-      401,
-      'github_auth_failed',
-      'GitHub rejected the request. Sign in with GitHub again or check OAuth scopes (public_repo).',
-      { status: res.status, body: body.slice(0, 200) },
+      403,
+      'github_forbidden',
+      'GitHub denied access to this resource. Check repository permissions or re-authorize with the repo scope.',
+      { body: body.slice(0, 200) },
     );
   }
   // Empty repos (and some unavailable git DBs) return 409 on tree/blob endpoints.
@@ -118,24 +151,17 @@ export function mapRepo(raw: GitHubRepoJson) {
 }
 
 export async function getRepo(owner: string, repo: string, accessToken?: string) {
-  const meta = mapRepo(
-    await githubFetch<GitHubRepoJson>(`/repos/${owner}/${repo}`, {}, accessToken),
-  );
-  if (meta.private) {
-    throw new HttpError(
-      403,
-      'private_repo_blocked',
-      'Private repositories are not allowed. Connect a public repository only.',
-    );
-  }
-  return meta;
+  const token =
+    accessToken ??
+    (await resolveTokenForRepo(owner, githubTokenStore.getStore()?.token)) ??
+    resolveToken();
+  return mapRepo(await githubFetch<GitHubRepoJson>(`/repos/${owner}/${repo}`, {}, token));
 }
 
 /**
- * List the signed-in user's public repositories (for the connect/picker UI).
- * Private repos are never returned.
+ * List repositories the signed-in user can access (public + private, personal + org).
  */
-export async function listPublicUserRepos(accessToken?: string, perPage = 100) {
+export async function listAccessibleUserRepos(accessToken?: string, perPage = 100) {
   const token = resolveToken(accessToken);
   if (!token) {
     throw new HttpError(
@@ -146,14 +172,17 @@ export async function listPublicUserRepos(accessToken?: string, perPage = 100) {
   }
 
   const raw = await githubFetch<GitHubRepoJson[]>(
-    `/user/repos?per_page=${perPage}&sort=updated&visibility=public&affiliation=owner,collaborator,organization_member`,
+    `/user/repos?per_page=${perPage}&sort=updated&visibility=all&affiliation=owner,collaborator,organization_member`,
     {},
     token,
   );
-  return raw.map(mapRepo).filter((repo) => !repo.private);
+  return raw.map(mapRepo);
 }
 
-/** List repos the user has connected for DevGuardian (subset of public repos). */
+/** @deprecated Use listAccessibleUserRepos — kept name alias for older imports. */
+export const listPublicUserRepos = listAccessibleUserRepos;
+
+/** List repos the user has connected for DevGuardian. */
 export async function listUserRepos(
   accessToken: string | undefined,
   selectedFullNames: string[],
@@ -162,11 +191,21 @@ export async function listUserRepos(
   if (!selectedFullNames.length) return [];
 
   const allowed = new Set(selectedFullNames.map((n) => n.toLowerCase()));
-  const publicRepos = await listPublicUserRepos(accessToken, perPage);
-  return publicRepos.filter((repo) => allowed.has(repo.fullName.toLowerCase()));
+  const [accessible, installRepos] = await Promise.all([
+    listAccessibleUserRepos(accessToken, perPage).catch(() => []),
+    listInstallationRepos().catch(() => []),
+  ]);
+
+  const merged = new Map<string, ReturnType<typeof mapRepo>>();
+  for (const repo of [...accessible, ...installRepos]) {
+    if (allowed.has(repo.fullName.toLowerCase())) {
+      merged.set(repo.fullName.toLowerCase(), repo);
+    }
+  }
+  return [...merged.values()];
 }
 
-/** Ensure fullName is in the user's connected public set. */
+/** Ensure fullName is in the user's connected set. */
 export function assertRepoConnected(fullName: string, selectedFullNames: string[]): void {
   const ok = selectedFullNames.some(
     (name) => name.toLowerCase() === fullName.trim().toLowerCase(),
@@ -183,8 +222,11 @@ export function assertRepoConnected(fullName: string, selectedFullNames: string[
 /** Recursive file tree for the default (or given) branch. */
 export async function getRepoTree(owner: string, repo: string, ref: string) {
   try {
+    const token = await resolveTokenForRepo(owner, githubTokenStore.getStore()?.token);
     return await githubFetch<{ tree: GitHubTreeItem[]; truncated: boolean }>(
       `/repos/${owner}/${repo}/git/trees/${encodeURIComponent(ref)}?recursive=1`,
+      {},
+      token,
     );
   } catch (err) {
     // Empty / uninitialized repos cannot expose a tree — return empty so analysis can continue.
@@ -203,11 +245,14 @@ export async function getFileContent(
   ref: string,
 ): Promise<string | null> {
   try {
+    const token = await resolveTokenForRepo(owner, githubTokenStore.getStore()?.token);
     const data = await githubFetch<GitHubContentFile>(
       `/repos/${owner}/${repo}/contents/${filePath
         .split('/')
         .map((segment) => encodeURIComponent(segment))
         .join('/')}?ref=${encodeURIComponent(ref)}`,
+      {},
+      token,
     );
     if (data.encoding !== 'base64') return null;
     return Buffer.from(data.content, 'base64').toString('utf8');

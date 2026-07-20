@@ -1,16 +1,27 @@
 import type { Response, NextFunction } from 'express';
 import {
   assertRepoConnected,
-  listPublicUserRepos,
+  listAccessibleUserRepos,
   listUserRepos,
   getRepo,
   parseFullName,
 } from '../services/github/client.js';
+import { listInstallationRepos } from '../services/auth/githubApp.js';
 import { setSelectedRepos } from '../services/auth/userStore.js';
 import { HttpError, sendOk } from '../utils/http.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 
-/** GET /api/repos — connected public repos only (for switcher / analysis). */
+function mergeReposByFullName<T extends { fullName: string }>(lists: T[][]): T[] {
+  const map = new Map<string, T>();
+  for (const list of lists) {
+    for (const repo of list) {
+      map.set(repo.fullName.toLowerCase(), repo);
+    }
+  }
+  return [...map.values()];
+}
+
+/** GET /api/repos — connected repos only (for switcher / analysis). */
 export async function listRepos(
   req: AuthedRequest,
   res: Response,
@@ -25,14 +36,18 @@ export async function listRepos(
   }
 }
 
-/** GET /api/repos/available — all public GitHub repos for the connect picker. */
+/** GET /api/repos/available — OAuth-accessible + GitHub App installation repos. */
 export async function listAvailableRepos(
   req: AuthedRequest,
   res: Response,
   next: NextFunction,
 ): Promise<void> {
   try {
-    const repos = await listPublicUserRepos(req.githubAccessToken);
+    const [oauthRepos, installRepos] = await Promise.all([
+      listAccessibleUserRepos(req.githubAccessToken),
+      listInstallationRepos().catch(() => []),
+    ]);
+    const repos = mergeReposByFullName([oauthRepos, installRepos]);
     sendOk(res, {
       repos,
       selectedRepos: req.user?.selectedRepos ?? [],
@@ -63,14 +78,18 @@ export async function saveRepoSelection(
       parseFullName(name);
     }
 
-    const publicRepos = await listPublicUserRepos(req.githubAccessToken);
-    const publicSet = new Set(publicRepos.map((r) => r.fullName.toLowerCase()));
-    const invalid = requested.filter((name) => !publicSet.has(name.toLowerCase()));
+    const [oauthRepos, installRepos] = await Promise.all([
+      listAccessibleUserRepos(req.githubAccessToken),
+      listInstallationRepos().catch(() => []),
+    ]);
+    const allowed = mergeReposByFullName([oauthRepos, installRepos]);
+    const allowedSet = new Set(allowed.map((r) => r.fullName.toLowerCase()));
+    const invalid = requested.filter((name) => !allowedSet.has(name.toLowerCase()));
     if (invalid.length) {
       throw new HttpError(
         400,
         'invalid_repos',
-        'Only your public repositories can be connected.',
+        'Only repositories you can access (OAuth or GitHub App install) can be connected.',
         { invalid },
       );
     }
@@ -83,7 +102,7 @@ export async function saveRepoSelection(
   }
 }
 
-/** GET /api/repos/:owner/:repo — metadata for one connected public repository. */
+/** GET /api/repos/:owner/:repo — metadata for one connected repository. */
 export async function getRepository(
   req: AuthedRequest,
   res: Response,

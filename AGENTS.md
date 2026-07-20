@@ -8,7 +8,9 @@ Codebase structure (npm workspaces monorepo):
 - `shared/` — TypeScript types/DTOs imported by both frontend and backend (single source of truth).
 - `docs/` — specs, architecture notes, and `lessons.md` (debugging memory).
 
-Data: MongoDB. Auth: GitHub OAuth. AI: OpenAI Responses API. Repo data: GitHub REST API. Deploy: Vercel (frontend), Render (backend), MongoDB Atlas. Guide: `docs/DEPLOY.md`. Production cookies use `SameSite=None; Secure` for cross-origin FE↔BE. Render builds: keep `typescript`/`@types/*` in `dependencies` (or `npm install --include=dev`) — production NODE_ENV skips devDependencies.
+Data: MongoDB (required for auth sessions). Auth: GitHub OAuth (`repo` + `read:org`) with revocable Mongo sessions (`jti`); optional GitHub App org installs. AI: OpenAI Responses API. Repo data: GitHub REST API (public + private). Deploy: Vercel (frontend), Render (backend), MongoDB Atlas. Guide: `docs/DEPLOY.md`. Production cookies use `SameSite=None; Secure` for cross-origin FE↔BE. Prod must set a strong `JWT_SECRET` (and optionally `ENCRYPTION_KEY`); refuse to boot with placeholder secrets or without Mongo. Render builds: keep `typescript`/`@types/*` in `dependencies` (or `npm install --include=dev`) — production NODE_ENV skips devDependencies.
+
+Auth anti-patterns to avoid: clearing only the cookie without revoking the session row; storing users in process memory when Mongo is down; treating GitHub 403 the same as 401 (do not wipe tokens on every 403).
 
 # Skills available for use
 

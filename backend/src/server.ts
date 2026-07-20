@@ -1,11 +1,19 @@
 import { createApp } from './app.js';
-import { connectMongo, disconnectMongo } from './config/db.js';
-import { env } from './config/env.js';
+import { connectMongo, disconnectMongo, isMongoConnected } from './config/db.js';
+import { env, isProd } from './config/env.js';
+import { assertBootSecrets } from './config/secrets.js';
 import { logger } from './utils/logger.js';
+
+assertBootSecrets();
 
 const app = createApp();
 
 await connectMongo();
+
+if (isProd && !isMongoConnected()) {
+  logger.error('MongoDB is required in production for auth sessions. Refusing to start.');
+  process.exit(1);
+}
 
 const server = app.listen(env.PORT, () => {
   logger.info(`DevGuardian backend listening on http://localhost:${env.PORT}/api`);

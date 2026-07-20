@@ -19,11 +19,17 @@ type EnvShape = {
   CLIENT_URL: string;
   MONGODB_URI?: string;
   JWT_SECRET?: string;
+  /** Optional dedicated key for encrypting GitHub tokens (falls back to JWT_SECRET). */
+  ENCRYPTION_KEY?: string;
   GITHUB_CLIENT_ID?: string;
   GITHUB_CLIENT_SECRET?: string;
   GITHUB_CALLBACK_URL?: string;
   /** Optional fallback PAT when no OAuth session is present. */
   GITHUB_TOKEN?: string;
+  /** Optional GitHub App (org install model). */
+  GITHUB_APP_ID?: string;
+  GITHUB_APP_PRIVATE_KEY?: string;
+  GITHUB_APP_SLUG?: string;
   /** google | openai — auto-picks Gemini when GEMINI_API_KEY is set */
   AI_PROVIDER?: string;
   GEMINI_API_KEY?: string;
@@ -49,10 +55,14 @@ export const env: EnvShape = {
   CLIENT_URL: process.env.CLIENT_URL ?? 'http://localhost:5173',
   MONGODB_URI: process.env.MONGODB_URI,
   JWT_SECRET: process.env.JWT_SECRET,
+  ENCRYPTION_KEY: process.env.ENCRYPTION_KEY,
   GITHUB_CLIENT_ID: process.env.GITHUB_CLIENT_ID,
   GITHUB_CLIENT_SECRET: process.env.GITHUB_CLIENT_SECRET,
   GITHUB_CALLBACK_URL: process.env.GITHUB_CALLBACK_URL,
   GITHUB_TOKEN: process.env.GITHUB_TOKEN,
+  GITHUB_APP_ID: process.env.GITHUB_APP_ID,
+  GITHUB_APP_PRIVATE_KEY: process.env.GITHUB_APP_PRIVATE_KEY,
+  GITHUB_APP_SLUG: process.env.GITHUB_APP_SLUG,
   AI_PROVIDER: process.env.AI_PROVIDER,
   GEMINI_API_KEY: process.env.GEMINI_API_KEY,
   GEMINI_MODEL: process.env.GEMINI_MODEL ?? 'gemini-flash-latest',

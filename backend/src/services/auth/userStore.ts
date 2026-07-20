@@ -2,13 +2,19 @@ import type { User } from '@devguardian/shared';
 import { isMongoConnected } from '../../config/db.js';
 import { UserModel, type UserDocument } from '../../models/User.js';
 import { decryptSecret, encryptSecret } from '../../utils/crypto.js';
-import { randomUUID } from 'node:crypto';
+import { HttpError } from '../../utils/http.js';
 
-export type StoredUser = User & { accessTokenEnc: string };
+export type StoredUser = User & { accessTokenEnc: string | null };
 
-// ponytail: memory user store when Mongo is down (ceil: process-local; upgrade: always Mongo)
-const memory = new Map<string, StoredUser>();
-const byGithubId = new Map<number, string>();
+function requireMongoForAuth(): void {
+  if (!isMongoConnected()) {
+    throw new HttpError(
+      503,
+      'mongo_required',
+      'MongoDB is required for authentication. Start Mongo or set MONGODB_URI.',
+    );
+  }
+}
 
 function toPublic(user: StoredUser): User {
   return {
@@ -31,7 +37,7 @@ function fromDoc(doc: UserDocument): StoredUser {
     name: doc.name ?? null,
     email: doc.email ?? null,
     avatarUrl: doc.avatarUrl,
-    accessTokenEnc: doc.accessTokenEnc,
+    accessTokenEnc: doc.accessTokenEnc ?? null,
     createdAt: doc.createdAt.toISOString(),
     selectedRepos: doc.selectedRepos ?? [],
   };
@@ -45,93 +51,65 @@ export async function upsertGithubUser(input: {
   avatarUrl: string;
   accessToken: string;
 }): Promise<User> {
+  requireMongoForAuth();
   const accessTokenEnc = encryptSecret(input.accessToken);
 
-  if (isMongoConnected()) {
-    const doc = await UserModel.findOneAndUpdate(
-      { githubId: input.githubId },
-      {
-        username: input.username,
-        name: input.name,
-        email: input.email,
-        avatarUrl: input.avatarUrl,
-        accessTokenEnc,
-      },
-      { upsert: true, new: true, setDefaultsOnInsert: true },
-    ).exec();
-
-    if (!doc) throw new Error('Failed to upsert user');
-    return toPublic(fromDoc(doc));
-  }
-
-  const existingId = byGithubId.get(input.githubId);
-  const now = new Date().toISOString();
-  if (existingId) {
-    const prev = memory.get(existingId)!;
-    const updated: StoredUser = {
-      ...prev,
+  const doc = await UserModel.findOneAndUpdate(
+    { githubId: input.githubId },
+    {
       username: input.username,
       name: input.name,
       email: input.email,
       avatarUrl: input.avatarUrl,
       accessTokenEnc,
-    };
-    memory.set(existingId, updated);
-    return toPublic(updated);
-  }
+    },
+    { upsert: true, new: true, setDefaultsOnInsert: true },
+  ).exec();
 
-  const id = randomUUID();
-  const created: StoredUser = {
-    id,
-    githubId: input.githubId,
-    username: input.username,
-    name: input.name,
-    email: input.email,
-    avatarUrl: input.avatarUrl,
-    accessTokenEnc,
-    createdAt: now,
-    selectedRepos: [],
-  };
-  memory.set(id, created);
-  byGithubId.set(input.githubId, id);
-  return toPublic(created);
+  if (!doc) throw new Error('Failed to upsert user');
+  return toPublic(fromDoc(doc));
 }
 
 export async function findUserById(id: string): Promise<StoredUser | null> {
-  if (isMongoConnected()) {
-    const doc = await UserModel.findById(id).exec();
-    return doc ? fromDoc(doc) : null;
-  }
-  return memory.get(id) ?? null;
+  requireMongoForAuth();
+  const doc = await UserModel.findById(id).exec();
+  return doc ? fromDoc(doc) : null;
 }
 
-export async function setSelectedRepos(
-  userId: string,
-  fullNames: string[],
-): Promise<User> {
-  const normalized = [
-    ...new Set(fullNames.map((n) => n.trim()).filter(Boolean)),
-  ];
+export async function setSelectedRepos(userId: string, fullNames: string[]): Promise<User> {
+  requireMongoForAuth();
+  const normalized = [...new Set(fullNames.map((n) => n.trim()).filter(Boolean))];
 
-  if (isMongoConnected()) {
-    const doc = await UserModel.findByIdAndUpdate(
-      userId,
-      { selectedRepos: normalized },
-      { new: true },
-    ).exec();
-    if (!doc) throw new Error('User not found');
-    return toPublic(fromDoc(doc));
-  }
-
-  const prev = memory.get(userId);
-  if (!prev) throw new Error('User not found');
-  const updated: StoredUser = { ...prev, selectedRepos: normalized };
-  memory.set(userId, updated);
-  return toPublic(updated);
+  const doc = await UserModel.findByIdAndUpdate(
+    userId,
+    { selectedRepos: normalized },
+    { new: true },
+  ).exec();
+  if (!doc) throw new Error('User not found');
+  return toPublic(fromDoc(doc));
 }
 
-export function getAccessToken(user: StoredUser): string {
+export function getAccessToken(user: StoredUser): string | undefined {
+  if (!user.accessTokenEnc) return undefined;
   return decryptSecret(user.accessTokenEnc);
+}
+
+/** Wipe stored GitHub token so the next API call forces re-auth. */
+export async function clearAccessToken(userId: string): Promise<void> {
+  if (!isMongoConnected()) return;
+  await UserModel.findByIdAndUpdate(userId, { accessTokenEnc: null }).exec();
+}
+
+export async function recordLoginAudit(
+  userId: string,
+  meta: { ip?: string | null; userAgent?: string | null },
+): Promise<void> {
+  requireMongoForAuth();
+  await UserModel.findByIdAndUpdate(userId, {
+    lastLoginAt: new Date(),
+    lastLoginIp: meta.ip ?? null,
+    lastLoginUserAgent: meta.userAgent ?? null,
+  }).exec();
 }
 
 export { toPublic };

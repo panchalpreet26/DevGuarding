@@ -1,3 +1,9 @@
+## 2026-07-20 — Auth milestone upgrades (sessions, private repos, secrets)
+
+- **Changes:** OAuth scopes ? `repo` + `read:org`; private repos allowed; Mongo-backed sessions with `jti` (logout / logout-all revoke); GitHub 401 clears stored token + sessions; OAuth token revoked on logout; prod refuses weak JWT_SECRET/ENCRYPTION_KEY and boots only with Mongo; auth fails loudly without Mongo (no memory user store); rate limits on auth routes; login audit fields; authError UX maps codes and clears query params; optional GitHub App install for org-shared repos.
+- **Migration:** Existing session cookies without `jti` are invalid — users must sign in again. Re-consent GitHub for the wider scope.
+- **Sources:** GitHub Apps JWT + installation tokens docs; OAuth App token DELETE revoke API.
+- **Prevention:** Never treat cookie clear alone as logout; never soft-fallback secrets in production.
 ## 2026-07-19 â€” Render build: missing `@types/node` / Express types
 
 - **Symptoms:** Render `tsc` fails with TS2591 (`process`, `node:path`), TS7016 (no declaration for `express`/`jsonwebtoken`), and check-file assert/console errors.
