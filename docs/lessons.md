@@ -19,3 +19,10 @@
 - **Root cause:** `MONGODB_URI=` left empty and the Atlas URL placed on the next line. dotenv treats that as empty string; `??` fallback does not apply to `""`.
 - **Fix:** Put the full URI on one line: `MONGODB_URI=mongodb+srv://...`. Treat blank `MONGODB_URI` as unset in `connectMongo`.
 - **Prevention:** Never split env values across lines; empty string â‰  missing.
+
+## 2026-07-20 — Deployed analysis: browser 502 + GitHub API error 409
+
+- **Symptoms:** Analysis fails on production with HTTP 502; message `GitHub API error 409`.
+- **Root cause:** GitHub returns 409 for GET /git/trees when the repo has no commits. Client mapped all non-OK GitHub statuses to HTTP 502.
+- **Fix:** Handle 409 explicitly; empty tree returns minimal analysis instead of crashing.
+- **Prevention:** Map empty-repo conflicts to actionable messages, not generic 502s.
